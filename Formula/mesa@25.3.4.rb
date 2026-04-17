@@ -129,6 +129,10 @@ class MesaAT2534 < Formula
         "#if LLVM_VERSION_MAJOR >= 22\n      clang::GetResourcesPath(std::string(clang_path));\n" \
         "#elif LLVM_VERSION_MAJOR >= 20\n      Driver::GetResourcesPath(std::string(clang_path));"
       )
+      s.sub!(
+        "#include <clang/Config/config.h>",
+        "#undef UNUSED\n#undef ASSERTED\n#include <clang/Config/config.h>"
+      )
     end
 
     # Work around superenv to avoid mixing `expat` usage in libraries across dependency tree.
