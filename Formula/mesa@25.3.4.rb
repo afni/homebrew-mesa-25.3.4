@@ -216,7 +216,8 @@ end
 __END__
 --- a/src/compiler/clc/clc_helpers.cpp
 +++ b/src/compiler/clc/clc_helpers.cpp
-@@ -70,6 +70,10 @@
+@@ -66,7 +66,11 @@
+ #if LLVM_VERSION_MAJOR >= 20
  #include <llvm/Support/VirtualFileSystem.h>
  #endif
  
@@ -238,3 +239,4 @@ __END__
        Driver::GetResourcesPath(std::string(clang_path));
  #else
        Driver::GetResourcesPath(std::string(clang_path), CLANG_RESOURCE_DIR);
+
