@@ -7,22 +7,22 @@ class MesaAT2534 < Formula
   sha256 "3a0fc6ec070b45ae25dc2ccb5e52fae1d89141f7c39c4a91fe4eaa80dfff9deb"
   license all_of: [
     "MIT",
-    "Apache-2.0", # include/{EGL,GLES*,vk_video,vulkan}, src/egl/generate/egl.xml, src/mapi/glapi/registry/gl.xml
-    "BSD-2-Clause", # src/asahi/lib/dyld_interpose.h, src/getopt/getopt*, src/util/xxhash.h
-    "BSD-3-Clause", # src/compiler/glsl/float64.glsl, src/util/softfloat.*
-    "BSL-1.0", # src/c11, src/gallium/auxiliary/gallivm/f.cpp
-    "HPND", # src/mesa/x86/assyntax.h
-    "HPND-sell-variant", # src/loader/loader_{dri,dri3,wayland}_helper.*, src/vulkan/wsi/wsi_common_display.*
-    "ICU", # src/glx/*
-    "MIT-Khronos-old", # src/compiler/spirv/{GLSL.*,OpenCL.std.h,spirv.core.grammar.json,spirv.h}
-    "SGI-B-2.0", # src/glx/*
-    :public_domain, # src/util/{dbghelp.h,u_atomic.h,sha1}, src/util/perf/gpuvis_trace_utils.h
-    { "GPL-1.0-or-later" => { with: "Linux-syscall-note" } }, # include/drm-uapi/sync_file.h
-    { "GPL-2.0-only" => { with: "Linux-syscall-note" } }, # include/drm-uapi/{d3dkmthk.h,dma-buf.h,etnaviv_drm.h}
+    "Apache-2.0",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "BSL-1.0",
+    "HPND",
+    "HPND-sell-variant",
+    "ICU",
+    "MIT-Khronos-old",
+    "SGI-B-2.0",
+    :public_domain,
+    { "GPL-1.0-or-later" => { with: "Linux-syscall-note" } },
+    { "GPL-2.0-only" => { with: "Linux-syscall-note" } },
   ]
 
   depends_on "bindgen" => :build
-  depends_on "bison" => :build # can't use from macOS, needs '> 2.3'
+  depends_on "bison" => :build
   depends_on "glslang" => :build
   depends_on "libyaml" => :build
   depends_on "meson" => :build
@@ -35,8 +35,7 @@ class MesaAT2534 < Formula
   depends_on "libxrender" => :build
   depends_on "libxrandr" => :build
   depends_on "xcb-util-keysyms"
-
-  depends_on "libclc" # OpenCL support needs share/clc/*.bc files at runtime
+  depends_on "libclc"
   depends_on "libpng"
   depends_on "libx11"
   depends_on "libxcb"
@@ -65,10 +64,9 @@ class MesaAT2534 < Formula
     depends_on "pycparser" => :build
     depends_on "valgrind" => :build
     depends_on "wayland-protocols" => :build
-
     depends_on "elfutils"
     depends_on "libdrm"
-    depends_on "libxml2" # not used on macOS
+    depends_on "libxml2"
     depends_on "libxshmfence"
     depends_on "libxxf86vm"
     depends_on "lm-sensors"
@@ -104,29 +102,35 @@ class MesaAT2534 < Formula
     sha256 "d76623373421df22fb4cf8817020cbb7ef15c725b9d5e45f17e189bfc384190f"
   end
 
-  patch do
-    url "https://gitlab.freedesktop.org/mesa/mesa/-/commit/dc03f94e070900365cc1ad91437db178d4d40573.diff"
-    sha256 "fb230a96e537dbbfa60dff17e568d6189cd71f8dbd74f557de40c6e4d876ed39"
-  end
+  # Inline patch for LLVM 22 compatibility in clc_helpers.cpp.
+  # Upstream commits dc03f94 and 1db77d08 — the createDiagnostics fix is
+  # already present in 25.3.4, so only the GetResourcesPath + OptionUtils
+  # hunk is needed here.
+  patch :DATA
 
   def python3
     "python3.13"
   end
 
   def install
-    # Work around superenv to avoid mixing `expat` usage in libraries across dependency tree.
-    # Brew `expat` usage in Python has low impact as it isn't loaded unless pyexpat is used.
-    # TODO: Consider adding a DSL for this or change how we handle Python's `expat` dependency
     if OS.mac? && MacOS.version < :sequoia
       env_vars = %w[CMAKE_PREFIX_PATH HOMEBREW_INCLUDE_PATHS HOMEBREW_LIBRARY_PATHS PATH PKG_CONFIG_PATH]
       ENV.remove env_vars, /(^|:)#{Regexp.escape(Formula["expat"].opt_prefix)}[^:]*/
       ENV.remove "HOMEBREW_DEPENDENCIES", "expat"
     end
 
+    # Ensure all X11/XCB deps are visible to pkg-config
+    ENV.append_path "PKG_CONFIG_PATH", Formula["libxshmfence"].opt_lib/"pkgconfig"
+    ENV.append_path "PKG_CONFIG_PATH", Formula["libxrandr"].opt_lib/"pkgconfig"
+    ENV.append_path "PKG_CONFIG_PATH", Formula["libxrender"].opt_lib/"pkgconfig"
+    ENV.append_path "PKG_CONFIG_PATH", Formula["xcb-util-keysyms"].opt_lib/"pkgconfig"
+
     venv = virtualenv_create(buildpath/"venv", python3)
     venv.pip_install resources.reject { |r| OS.mac? && r.name == "ply" }
+
     ENV.prepend_path "PYTHONPATH", venv.site_packages
     ENV.prepend_path "PATH", venv.root/"bin"
+
     ENV.append "LDFLAGS", "-Wl,-rpath,#{rpath}" if OS.mac?
 
     args = %w[
@@ -137,10 +141,9 @@ class MesaAT2534 < Formula
       -Dstrip=true
       -Dvideo-codecs=all
     ]
-    args += if OS.mac?
-      # Work around .../rusticl_system_bindings.h:1:10: fatal error: 'stdio.h' file not found
-      ENV["SDKROOT"] = MacOS.sdk_for_formula(self).path
 
+    args += if OS.mac?
+      ENV["SDKROOT"] = MacOS.sdk_for_formula(self).path
       %W[
         -Dgallium-drivers=llvmpipe,zink
         -Dmoltenvk-dir=#{Formula["molten-vk"].prefix}
@@ -149,10 +152,7 @@ class MesaAT2534 < Formula
         -Dvulkan-layers=intel-nullhw,overlay,screenshot,vram-report-limit
       ]
     else
-      # Not all supported drivers are being auto-enabled on x86 Linux.
-      # TODO: Determine the explicit drivers list for ARM Linux.
       drivers = Hardware::CPU.intel? ? "all" : "auto"
-
       %W[
         -Degl=enabled
         -Dgallium-drivers=#{drivers}
@@ -179,11 +179,11 @@ class MesaAT2534 < Formula
     system "meson", "install", "-C", "build"
 
     prefix.install "docs/license.rst"
+
     inreplace lib/"pkgconfig/dri.pc" do |s|
       s.change_make_var! "dridriverdir", HOMEBREW_PREFIX/"lib/dri"
     end
 
-    # https://gitlab.freedesktop.org/mesa/mesa/-/issues/13119
     if OS.mac?
       inreplace %W[
         #{prefix}/etc/OpenCL/vendors/rusticl.icd
@@ -207,7 +207,34 @@ class MesaAT2534 < Formula
     end
 
     %w[glxgears.c gl_wrap.h].each { |r| resource(r).stage(testpath) }
+
     flags = shell_output("pkgconf --cflags --libs gl x11 xext").chomp.split
     system ENV.cc, "glxgears.c", "-o", "gears", *flags, "-lm"
   end
 end
+
+__END__
+--- a/src/compiler/clc/clc_helpers.cpp
++++ b/src/compiler/clc/clc_helpers.cpp
+@@ -70,6 +70,10 @@
+ #include <llvm/Support/VirtualFileSystem.h>
+ #endif
+ 
++#if LLVM_VERSION_MAJOR >= 22
++#include <clang/Options/OptionUtils.h>
++#endif
++
+ #include "util/macros.h"
+ #include "util/u_dl.h"
+ #include "glsl_types.h"
+@@ -915,7 +919,9 @@
+    // GetResourcePath is a way to retrieve the actual libclang resource dir based on a given binary
+    // or library.
+    auto tmp_res_path =
+-#if LLVM_VERSION_MAJOR >= 20
++#if LLVM_VERSION_MAJOR >= 22
++      clang::GetResourcesPath(std::string(clang_path));
++#elif LLVM_VERSION_MAJOR >= 20
+       Driver::GetResourcesPath(std::string(clang_path));
+ #else
+       Driver::GetResourcesPath(std::string(clang_path), CLANG_RESOURCE_DIR);
