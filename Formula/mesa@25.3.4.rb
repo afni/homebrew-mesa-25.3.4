@@ -108,30 +108,30 @@ class MesaAT2534 < Formula
 
   def install
     # Fix LLVM 22 API incompatibilities in clc_helpers.cpp.
-    # 1. OffloadArch.h in LLVM 22 uses UNUSED as an enum value, which conflicts
-    #    with mesa's macro. Including OptionUtils.h before mesa headers resolves it.
-    # 2. Driver::GetResourcesPath was moved to clang::GetResourcesPath in LLVM 22.
+    #
+    # LLVM 22's OffloadArch.h uses UNUSED as an enum value name, which conflicts
+    # with mesa's util/macros.h defining UNUSED as a compiler attribute macro.
+    # The clang headers are included starting at line 48 (clang/Config/config.h),
+    # which transitively pulls in OffloadArch.h before mesa's UNUSED is undefined.
+    #
+    # Fix 1: Include OptionUtils.h and #undef UNUSED right before the clang block.
+    # Fix 2: Driver::GetResourcesPath moved to clang::GetResourcesPath in LLVM 22.
     inreplace "src/compiler/clc/clc_helpers.cpp" do |s|
-      # Undef UNUSED before clang headers to avoid conflict with OffloadArch.h in LLVM 22
+      # Insert OptionUtils.h include and undef UNUSED before the clang headers block.
+      # This must come before clang/Basic/TargetInfo.h transitively includes OffloadArch.h.
       s.sub!(
         "#include <clang/Config/config.h>",
-        "#undef UNUSED\n#include <clang/Config/config.h>"
+        "#if LLVM_VERSION_MAJOR >= 22\n" \
+        "#include <clang/Options/OptionUtils.h>\n" \
+        "#endif\n" \
+        "#undef UNUSED\n" \
+        "#include <clang/Config/config.h>"
       )
-      # Add OptionUtils.h include for LLVM 22
-      s.sub!(
-        /#if LLVM_VERSION_MAJOR >= 20\n#include <llvm\/Support\/VirtualFileSystem\.h>\n#endif/,
-        "#if LLVM_VERSION_MAJOR >= 20\n#include <llvm/Support/VirtualFileSystem.h>\n#endif\n\n" \
-        "#if LLVM_VERSION_MAJOR >= 22\n#include <clang/Options/OptionUtils.h>\n#endif"
-      )
-      # Fix GetResourcesPath for LLVM 22
+      # Fix GetResourcesPath API change in LLVM 22
       s.sub!(
         /#if LLVM_VERSION_MAJOR >= 20\n      Driver::GetResourcesPath\(std::string\(clang_path\)\);/,
         "#if LLVM_VERSION_MAJOR >= 22\n      clang::GetResourcesPath(std::string(clang_path));\n" \
         "#elif LLVM_VERSION_MAJOR >= 20\n      Driver::GetResourcesPath(std::string(clang_path));"
-      )
-      s.sub!(
-        "#include <clang/Config/config.h>",
-        "#undef UNUSED\n#include <clang/Config/config.h>"
       )
     end
 
