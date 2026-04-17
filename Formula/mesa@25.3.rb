@@ -1,4 +1,4 @@
-class MesaAt253 < Formula
+class MesaAT253 < Formula
   include Language::Python::Virtualenv
 
   desc "Graphics Library"
