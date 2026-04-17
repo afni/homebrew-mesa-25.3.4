@@ -1,4 +1,4 @@
-class MesaAT253 < Formula
+class Mesa < Formula
   include Language::Python::Virtualenv
 
   desc "Graphics Library"
@@ -20,10 +20,19 @@ class MesaAT253 < Formula
     { "GPL-1.0-or-later" => { with: "Linux-syscall-note" } }, # include/drm-uapi/sync_file.h
     { "GPL-2.0-only" => { with: "Linux-syscall-note" } }, # include/drm-uapi/{d3dkmthk.h,dma-buf.h,etnaviv_drm.h}
   ]
-  keg_only :versioned_formula
+  head "https://gitlab.freedesktop.org/mesa/mesa.git", branch: "main"
+
+  bottle do
+    sha256 arm64_tahoe:   "ffa615e47150df39d68fdc678adef3b6d9b1827fb2b61d7fd6fc35d0c05f0369"
+    sha256 arm64_sequoia: "51a93e14311c08b78becacf1c2b7c761f99b25ca392af5cf9fcd541c6ba46327"
+    sha256 arm64_sonoma:  "358291feef5ea478c512ba017b05ea03d7a889c77d6ec87f9765a3e4ff56b5fa"
+    sha256 sonoma:        "db1620d5eeb4b23100bea86a5251d6f241a5186b45ffa9dc64dec5d7586520ae"
+    sha256 arm64_linux:   "556752f81c7e61a8e6b66e36198b85905a0202800cf5a7d3697d80f297f1afe7"
+    sha256 x86_64_linux:  "797427d3600d79309ee50049e4b8573359caa5b260776af2fda07fcaf7aa9210"
+  end
 
   depends_on "bindgen" => :build
-  depends_on "bison" => :build
+  depends_on "bison" => :build # can't use from macOS, needs '> 2.3'
   depends_on "glslang" => :build
   depends_on "libxrandr" => :build
   depends_on "libxrender" => :build
@@ -36,7 +45,7 @@ class MesaAT253 < Formula
   depends_on "rust" => :build
   depends_on "xorgproto" => :build
 
-  depends_on "libclc"
+  depends_on "libclc" # OpenCL support needs share/clc/*.bc files at runtime
   depends_on "libpng"
   depends_on "libx11"
   depends_on "libxcb"
@@ -47,8 +56,8 @@ class MesaAT253 < Formula
   depends_on "spirv-tools"
   depends_on "zstd"
 
-  uses_from_macos "expat"
   uses_from_macos "flex" => :build
+  uses_from_macos "expat"
   uses_from_macos "zlib"
 
   on_macos do
@@ -65,7 +74,7 @@ class MesaAT253 < Formula
 
     depends_on "elfutils"
     depends_on "libdrm"
-    depends_on "libxml2"
+    depends_on "libxml2" # not used on macOS
     depends_on "libxshmfence"
     depends_on "libxxf86vm"
     depends_on "lm-sensors"
@@ -76,7 +85,7 @@ class MesaAT253 < Formula
     end
   end
 
-  pypi_packages package_name: "",
+  pypi_packages package_name:   "",
                 extra_packages: %w[mako packaging ply pyyaml]
 
   resource "mako" do
@@ -109,6 +118,9 @@ class MesaAT253 < Formula
   end
 
   def install
+    # Work around superenv to avoid mixing `expat` usage in libraries across dependency tree.
+    # Brew `expat` usage in Python has low impact as it isn't loaded unless pyexpat is used.
+    # TODO: Consider adding a DSL for this or change how we handle Python's `expat` dependency
     if OS.mac? && MacOS.version < :sequoia
       env_vars = %w[CMAKE_PREFIX_PATH HOMEBREW_INCLUDE_PATHS HOMEBREW_LIBRARY_PATHS PATH PKG_CONFIG_PATH]
       ENV.remove env_vars, /(^|:)#{Regexp.escape(Formula["expat"].opt_prefix)}[^:]*/
@@ -130,6 +142,7 @@ class MesaAT253 < Formula
       -Dvideo-codecs=all
     ]
     args += if OS.mac?
+      # Work around .../rusticl_system_bindings.h:1:10: fatal error: 'stdio.h' file not found
       ENV["SDKROOT"] = MacOS.sdk_for_formula(self).path
 
       %W[
@@ -140,6 +153,8 @@ class MesaAT253 < Formula
         -Dvulkan-layers=intel-nullhw,overlay,screenshot,vram-report-limit
       ]
     else
+      # Not all supported drivers are being auto-enabled on x86 Linux.
+      # TODO: Determine the explicit drivers list for ARM Linux.
       drivers = Hardware::CPU.intel? ? "all" : "auto"
 
       %W[
@@ -172,6 +187,7 @@ class MesaAT253 < Formula
       s.change_make_var! "dridriverdir", HOMEBREW_PREFIX/"lib/dri"
     end
 
+    # https://gitlab.freedesktop.org/mesa/mesa/-/issues/13119
     if OS.mac?
       inreplace %W[
         #{prefix}/etc/OpenCL/vendors/rusticl.icd
