@@ -111,31 +111,35 @@ class MesaAT2534 < Formula
     #
     # LLVM 22's OffloadArch.h uses UNUSED as an enum value name, which conflicts
     # with mesa's util/macros.h defining UNUSED as a compiler attribute macro.
-    # The clang headers are included starting at line 48 (clang/Config/config.h),
-    # which transitively pulls in OffloadArch.h before mesa's UNUSED is undefined.
+    # clang/Basic/TargetInfo.h (included at line 56) transitively pulls in
+    # OffloadArch.h, causing the conflict. We use push_macro/pop_macro to
+    # temporarily clear UNUSED and ASSERTED around the entire clang/llvm include
+    # block, then restore them afterward so mesa's own code still works.
     #
-    # Fix 1: Include OptionUtils.h and #undef UNUSED right before the clang block.
-    # Fix 2: Driver::GetResourcesPath moved to clang::GetResourcesPath in LLVM 22.
+    # Additionally, Driver::GetResourcesPath moved to clang::GetResourcesPath
+    # as a free function in LLVM 22.
     inreplace "src/compiler/clc/clc_helpers.cpp" do |s|
-      # Insert OptionUtils.h include and undef UNUSED before the clang headers block.
-      # This must come before clang/Basic/TargetInfo.h transitively includes OffloadArch.h.
+      # Save and clear UNUSED/ASSERTED before clang headers
       s.sub!(
         "#include <clang/Config/config.h>",
-        "#if LLVM_VERSION_MAJOR >= 22\n" \
-        "#include <clang/Options/OptionUtils.h>\n" \
-        "#endif\n" \
         "#pragma push_macro(\"UNUSED\")\n" \
         "#pragma push_macro(\"ASSERTED\")\n" \
         "#undef UNUSED\n" \
         "#undef ASSERTED\n" \
         "#include <clang/Config/config.h>"
       )
-      # Fix GetResourcesPath API change in LLVM 22
+      # Restore UNUSED/ASSERTED after the last conditional clang/llvm include
       s.sub!(
         /#if LLVM_VERSION_MAJOR >= 20\n#include <llvm\/Support\/VirtualFileSystem\.h>\n#endif/,
         "#if LLVM_VERSION_MAJOR >= 20\n#include <llvm/Support/VirtualFileSystem.h>\n#endif\n" \
         "#pragma pop_macro(\"ASSERTED\")\n" \
         "#pragma pop_macro(\"UNUSED\")"
+      )
+      # Fix GetResourcesPath API change in LLVM 22
+      s.sub!(
+        /#if LLVM_VERSION_MAJOR >= 20\n      Driver::GetResourcesPath\(std::string\(clang_path\)\);/,
+        "#if LLVM_VERSION_MAJOR >= 22\n      clang::GetResourcesPath(std::string(clang_path));\n" \
+        "#elif LLVM_VERSION_MAJOR >= 20\n      Driver::GetResourcesPath(std::string(clang_path));"
       )
     end
 
