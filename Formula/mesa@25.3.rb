@@ -34,7 +34,9 @@ class MesaAT253 < Formula
   
   depends_on "libxshmfence" => :build
   depends_on "xcb-util-keysyms"
+  depends_on "libxrender" => :build
   depends_on "libxrandr" => :build
+  
   
   
 
