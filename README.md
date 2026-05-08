@@ -7,8 +7,8 @@ suma does not work with versions 26.0.3 until 26.2.0 at least on Intel and ARM M
 brew tap afni/mesa-25.3.4
 brew install mesa@25.3.4
 
-rm /opt/homebrew/opt/mesa 
-ln -s /opt/homebrew/Cellar/mesa@25.3.4/25.3.4 /opt/homebrew/opt/mesa
+rm $HOMEBREW_PREFIX/opt/mesa 
+ln -s $HOMEBREW_PREFIX/Cellar/mesa@25.3.4/25.3.4 $HOMEBREW_PREFIX/opt/mesa
 brew link --overwrite mesa@25.3.4
 ```
 
