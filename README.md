@@ -9,6 +9,7 @@ brew install mesa@25.3.4
 
 rm /opt/homebrew/opt/mesa 
 ln -s /opt/homebrew/Cellar/mesa@25.3.4/25.3.4 /opt/homebrew/opt/mesa
+brew link --overwrite mesa@25.3.4
 ```
 
 You may also need an update to the expat library and to the MacOS (26.3->26.4).
