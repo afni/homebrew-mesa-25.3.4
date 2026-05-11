@@ -1,7 +1,7 @@
 # mesa-25.3.4
 
 This is a patch to install a slightly older version mesa on Macs. 
-suma does not work with versions 26.0.3 until 26.2.0 at least on Intel and ARM Macs.
+suma does not work with versions 26.0.3 until 26.1.0 at least on Intel and ARM Macs.
 
 ```
 brew tap afni/mesa-25.3.4
